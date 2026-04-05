@@ -134,6 +134,7 @@ Supported flow:
 Troubleshooting:
 - `RuntimeError: TELEGRAM_BOT_TOKEN is required`:
   - your env variable is not set in current shell session.
+  - ensure `.env` is in project root (`texnik_tgbot/.env`) and has exact key `TELEGRAM_BOT_TOKEN=...` (also supports `export TELEGRAM_BOT_TOKEN=...`).
   - use one-line launch:
     `TELEGRAM_BOT_TOKEN=... BACKEND_BASE_URL=http://127.0.0.1:8000 python3 scripts/telegram_bot_runner.py`
 - `SSL: CERTIFICATE_VERIFY_FAILED` to `api.telegram.org`:

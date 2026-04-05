@@ -9,23 +9,31 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def _load_dotenv(dotenv_path: str = ".env") -> None:
+
+def _load_dotenv(dotenv_path: str) -> bool:
     if not os.path.exists(dotenv_path):
-        return
-    with open(dotenv_path, "r", encoding="utf-8") as f:
+        return False
+    with open(dotenv_path, "r", encoding="utf-8-sig") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
             key, value = line.split("=", 1)
             key = key.strip()
-            value = value.strip().strip('"').strip("'")
+            value = value.split(" #", 1)[0].strip().strip('"').strip("'")
             if key and key not in os.environ:
                 os.environ[key] = value
+    return True
 
 
-_load_dotenv()
+dotenv_loaded_paths: list[str] = []
+for candidate in (os.path.join(ROOT_DIR, ".env"), os.path.join(os.getcwd(), ".env")):
+    if _load_dotenv(candidate):
+        dotenv_loaded_paths.append(candidate)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -121,7 +129,9 @@ def run_polling() -> None:
     if not TOKEN:
         raise RuntimeError(
             "TELEGRAM_BOT_TOKEN is required. "
-            "Set it in shell or create .env with TELEGRAM_BOT_TOKEN=..."
+            "Set it in shell or create .env with TELEGRAM_BOT_TOKEN=... "
+            f"(checked: {os.path.join(ROOT_DIR, '.env')}, {os.path.join(os.getcwd(), '.env')}; "
+            f"loaded: {', '.join(dotenv_loaded_paths) if dotenv_loaded_paths else 'none'})"
         )
 
     offset = 0
