@@ -1,0 +1,394 @@
+openapi: 3.1.0
+info:
+  title: Texnik TG Bot API - Stage B
+  version: 0.2.0
+  description: |
+    Telegram flow endpoints for request creation and "status of my requests".
+servers:
+  - url: https://internal-api.example.com
+
+tags:
+  - name: bot-session
+  - name: bot-requests
+  - name: bot-status
+
+paths:
+  /v1/bot/session/start:
+    post:
+      tags: [bot-session]
+      summary: Validate BXM and initialize bot session context
+      operationId: startSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequest'
+      responses:
+        '200':
+          description: Valid BXM, branch context returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartSessionResponse'
+        '422':
+          description: BXM invalid format or not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/bot/requests/new-issue:
+    post:
+      tags: [bot-requests]
+      summary: Create request for new equipment issue (without inventory code)
+      operationId: createNewIssueRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewIssueCreateRequest'
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestCreatedResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/bot/requests/replacement:
+    post:
+      tags: [bot-requests]
+      summary: Create replacement request with inventory validations and year rule
+      operationId: createReplacementRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplacementCreateRequest'
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestCreatedResponse'
+        '422':
+          description: Inventory/BXM validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/bot/requests/repair:
+    post:
+      tags: [bot-requests]
+      summary: Create repair request with inventory validations (without year restriction)
+      operationId: createRepairRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepairCreateRequest'
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestCreatedResponse'
+        '422':
+          description: Inventory/BXM validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/bot/status/fio-options:
+    get:
+      tags: [bot-status]
+      summary: Return FIO options for current telegram account
+      operationId: getFioOptions
+      parameters:
+        - in: query
+          name: telegram_user_id
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: locale
+          required: false
+          schema:
+            $ref: '#/components/schemas/Locale'
+      responses:
+        '200':
+          description: FIO options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FioOptionsResponse'
+
+  /v1/bot/status/requests:
+    get:
+      tags: [bot-status]
+      summary: Return employee requests by TG account and selected FIO
+      operationId: getStatusRequests
+      parameters:
+        - in: query
+          name: telegram_user_id
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: fio_query
+          required: false
+          schema:
+            type: string
+            description: FIO free-text filter. Match on normalized + transliterated forms.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Paginated requests list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusRequestsResponse'
+        '404':
+          description: No requests found for selected FIO
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Locale:
+      type: string
+      enum: [uz, ru]
+      default: uz
+
+    RequestType:
+      type: string
+      enum: [new_issue, replacement, repair]
+
+    EquipmentType:
+      type: string
+      enum: [computer, printer]
+
+    StartSessionRequest:
+      type: object
+      required: [telegram_user_id, locale, fio_input, bxm_code]
+      properties:
+        telegram_user_id:
+          type: integer
+          format: int64
+        locale:
+          $ref: '#/components/schemas/Locale'
+        fio_input:
+          type: string
+        bxm_code:
+          type: string
+          pattern: '^[0-9]{5}$'
+
+    StartSessionResponse:
+      type: object
+      required: [telegram_account_id, branch, message_key]
+      properties:
+        telegram_account_id:
+          type: integer
+          format: int64
+        branch:
+          type: object
+          properties:
+            branch_id:
+              type: integer
+              format: int64
+            bxm_code:
+              type: string
+            branch_name:
+              type: string
+            region_name:
+              type: string
+            city_name:
+              type: string
+        message_key:
+          type: string
+          example: session_bxm_confirmed
+
+    BaseRequestPayload:
+      type: object
+      required:
+        - telegram_user_id
+        - locale
+        - bxm_code
+        - fio
+        - position
+        - equipment_type
+      properties:
+        telegram_user_id:
+          type: integer
+          format: int64
+        locale:
+          $ref: '#/components/schemas/Locale'
+        bxm_code:
+          type: string
+          pattern: '^[0-9]{5}$'
+        fio:
+          type: string
+        position:
+          type: string
+        equipment_type:
+          $ref: '#/components/schemas/EquipmentType'
+
+    NewIssueCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequestPayload'
+        - type: object
+          required: [reason_text]
+          properties:
+            reason_text:
+              type: string
+
+    ReplacementCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequestPayload'
+        - type: object
+          required: [inventory_code, reason_text]
+          properties:
+            inventory_code:
+              type: string
+            reason_text:
+              type: string
+
+    RepairCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequestPayload'
+        - type: object
+          required: [inventory_code, problem_text]
+          properties:
+            inventory_code:
+              type: string
+            problem_text:
+              type: string
+
+    RequestCreatedResponse:
+      type: object
+      required: [request_id, request_number, status_ui, message_key]
+      properties:
+        request_id:
+          type: integer
+          format: int64
+        request_number:
+          type: string
+        status_ui:
+          type: string
+          enum: [processing]
+        message_key:
+          type: string
+          example: request_created
+
+    FioOption:
+      type: object
+      required: [fio_display, fio_normalized_basic, request_count]
+      properties:
+        fio_display:
+          type: string
+        fio_normalized_basic:
+          type: string
+        request_count:
+          type: integer
+
+    FioOptionsResponse:
+      type: object
+      required: [single_fio_mode, options]
+      properties:
+        single_fio_mode:
+          type: boolean
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/FioOption'
+
+    StatusRequestItem:
+      type: object
+      required: [request_number, fio, request_type, equipment_type, status_ui, created_at]
+      properties:
+        request_number:
+          type: string
+        fio:
+          type: string
+        request_type:
+          $ref: '#/components/schemas/RequestType'
+        equipment_type:
+          $ref: '#/components/schemas/EquipmentType'
+        status_ui:
+          type: string
+          enum: [processing, approved, rejected]
+        reject_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    StatusRequestsResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusRequestItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required: [error_code, message_key]
+      properties:
+        error_code:
+          type: string
+          enum:
+            - INVALID_BXM_FORMAT
+            - BXM_NOT_FOUND
+            - INVENTORY_NOT_FOUND
+            - INVENTORY_WRONG_TYPE
+            - INVENTORY_WRONG_BRANCH
+            - INVENTORY_ALREADY_HAS_OPEN_REQUEST
+            - REPLACEMENT_YEAR_BLOCKED
+            - FIO_NOT_FOUND
+            - VALIDATION_ERROR
+        message_key:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
