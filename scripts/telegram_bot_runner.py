@@ -200,4 +200,7 @@ def run_polling() -> None:
 
 
 if __name__ == "__main__":
-    run_polling()
+    try:
+        run_polling()
+    except KeyboardInterrupt:
+        print("\nBot runner stopped by user (Ctrl+C).")

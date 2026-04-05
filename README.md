@@ -144,3 +144,4 @@ Troubleshooting:
   - on startup runner must print `Telegram bot connected as @...`; if not, token/network issue.
   - make sure you write to the exact bot from `@username` shown by runner.
   - send `/start` in private chat first (runner handles BXM flow only after `/start`).
+  - stopping with `Ctrl+C` is normal and now exits with a short message (without traceback).
