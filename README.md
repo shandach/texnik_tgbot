@@ -24,17 +24,6 @@ Or use one command helper script:
 ./scripts/run_api.sh
 ```
 
-On macOS where `python` alias may be missing, the script automatically falls back to `python3`.
-
-If you still see `python: command not found`, your local copy is likely outdated. Update and verify:
-
-```bash
-git pull
-sed -n '1,40p' scripts/run_api.sh
-```
-
-The updated script must contain a `python3` fallback block and print `Using Python interpreter: ...` on startup.
-
 Then open:
 
 - Swagger UI: `http://127.0.0.1:8000/docs`
