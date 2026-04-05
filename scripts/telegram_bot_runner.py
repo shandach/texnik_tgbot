@@ -71,8 +71,26 @@ def _telegram(method: str, payload: dict | None = None) -> dict:
     return _http_json("POST", url, payload or {})
 
 
+def _telegram_safe(method: str, payload: dict | None = None) -> tuple[bool, dict | str]:
+    try:
+        return True, _telegram(method, payload)
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="ignore")
+        try:
+            parsed = json.loads(raw)
+            return False, parsed.get("description", f"HTTP {exc.code}")
+        except json.JSONDecodeError:
+            return False, f"HTTP {exc.code}"
+    except ssl.SSLCertVerificationError:
+        return False, "SSL_CERTIFICATE_VERIFY_FAILED"
+    except urllib.error.URLError as exc:
+        return False, f"URL error: {exc.reason}"
+
+
 def send_message(chat_id: int, text: str) -> None:
-    _telegram("sendMessage", {"chat_id": chat_id, "text": text})
+    ok, result = _telegram_safe("sendMessage", {"chat_id": chat_id, "text": text})
+    if not ok:
+        print(f"sendMessage failed for chat_id={chat_id}: {result}")
 
 
 def call_backend_start_session(telegram_user_id: int, bxm_code: str) -> tuple[bool, str]:
@@ -141,6 +159,16 @@ def run_polling() -> None:
         print("WARNING: TLS certificate verification for Telegram is disabled")
     elif SSL_CERT_FILE:
         print(f"Using custom CA file: {SSL_CERT_FILE}")
+
+    ok, me = _telegram_safe("getMe")
+    if not ok:
+        raise RuntimeError(f"Telegram API auth/check failed: {me}")
+    me_obj = me.get("result", {}) if isinstance(me, dict) else {}
+    print(
+        "Telegram bot connected as "
+        f"@{me_obj.get('username', 'unknown')} (id={me_obj.get('id', 'n/a')})"
+    )
+
     while True:
         try:
             updates = _telegram("getUpdates", {"offset": offset, "timeout": POLL_TIMEOUT})
@@ -153,6 +181,7 @@ def run_polling() -> None:
             time.sleep(3)
             continue
         except urllib.error.URLError:
+            print("Network error while polling Telegram. Retrying...")
             time.sleep(3)
             continue
 
@@ -166,6 +195,7 @@ def run_polling() -> None:
             user_id = user.get("id")
             if not chat_id or not user_id or not text:
                 continue
+            print(f"Update from chat={chat_id}, user={user_id}, text={text!r}")
             handle_text(chat_id, user_id, text)
 
 

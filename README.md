@@ -140,3 +140,7 @@ Troubleshooting:
 - `SSL: CERTIFICATE_VERIFY_FAILED` to `api.telegram.org`:
   - set `SSL_CERT_FILE=/path/to/corporate-ca.pem`, or
   - for local debug only: `TELEGRAM_INSECURE_SKIP_VERIFY=1`.
+- bot is running but does not answer:
+  - on startup runner must print `Telegram bot connected as @...`; if not, token/network issue.
+  - make sure you write to the exact bot from `@username` shown by runner.
+  - send `/start` in private chat first (runner handles BXM flow only after `/start`).
